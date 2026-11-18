@@ -25,7 +25,7 @@ import { MinimapRadar } from './components/MinimapRadar';
 import { OnlinePlayersDrawer } from './components/OnlinePlayersDrawer';
 import { TeacherArchiveModal } from './components/TeacherArchiveModal';
 import { VersusModal } from './components/VersusModal';
-import { CHAPTERS } from './data/curriculum';
+import { CHAPTERS, INTERIOR_BUILD_REWARDS } from './data/curriculum';
 import { getVersusQuestionsByIds } from './data/versusBank';
 import { VERSUS_BUILDING_POS, WorldEngine } from './game/WorldEngine';
 import {
@@ -390,6 +390,8 @@ function GameApp() {
         },
         onEnterBuilding: (ch) => {
           audioManager.playSfx('portal');
+          const savedScore = progressRef.current.chapters[ch.id]?.mcqScore || 0;
+          engine.setInteriorCorrectCount(savedScore, true);
           setInsideChapter(ch);
           audioManager.speak(
             `Memasuki gedung Bab ${ch.id}. Pilih layar video, meja soal, atau terminal kirim sheet refleksi.`
@@ -444,10 +446,14 @@ function GameApp() {
     };
   }, [hasEnteredWorld]);
 
-  // Sync completed chapters & local avatar updates to 3D engine
+  // Sync completed chapters, interior rewards & local avatar updates to 3D engine
   useEffect(() => {
     if (!engineRef.current) return;
     engineRef.current.updateCompletedChapters(progress.completedChapters);
+    if (insideChapter) {
+      const score = progress.chapters[insideChapter.id]?.mcqScore || 0;
+      engineRef.current.setInteriorCorrectCount(score, false);
+    }
     engineRef.current.updateLocalAvatar(profile.avatar, {
       name: profile.name,
       className: profile.className,
@@ -455,7 +461,7 @@ function GameApp() {
       completedCount: progress.completedChapters.length,
       answeredCount: totalAnswered,
     });
-  }, [profile, progress.level, progress.completedChapters, totalAnswered]);
+  }, [profile, progress.level, progress.completedChapters, progress.chapters, insideChapter, totalAnswered]);
 
   // Sync weather state to 3D engine
   useEffect(() => {
@@ -1022,38 +1028,57 @@ function GameApp() {
 
           {/* Bottom-Center / Right: Contextual Building Prompt or Interior Controls */}
           {insideChapter ? (
-            <div className="fixed bottom-4 right-4 left-36 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex flex-wrap items-center justify-end sm:justify-center gap-2">
-              <button
-                onClick={() => {
-                  setChapterModalTab('video');
-                  setChapterModalOpen(true);
-                }}
-                className="px-3.5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-xl whitespace-nowrap"
-              >
-                <PlayCircle className="w-4 h-4" />
-                Video Materi
-              </button>
-              <button
-                onClick={() => {
-                  setChapterModalTab('quiz');
-                  setChapterModalOpen(true);
-                }}
-                className="px-3.5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-xl whitespace-nowrap"
-              >
-                <BookMarked className="w-4 h-4" />
-                Soal & Refleksi
-              </button>
-              <button
-                onClick={() => {
-                  engineRef.current?.exitBuilding();
-                  setInsideChapter(null);
-                  setChapterModalOpen(false);
-                }}
-                className="px-3.5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-xs font-bold flex items-center gap-1.5 shadow-xl whitespace-nowrap"
-              >
-                <DoorOpen className="w-4 h-4" />
-                Keluar Kota
-              </button>
+            <div className="fixed bottom-4 right-4 left-36 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex flex-col items-end sm:items-center gap-2">
+              {(() => {
+                const score = progress.chapters[insideChapter.id]?.mcqScore || 0;
+                const built = Math.min(5, Math.floor(score / 2));
+                const nextObj = INTERIOR_BUILD_REWARDS[built];
+                return (
+                  <div className="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-amber-400/40 text-[11px] text-slate-200 shadow-lg max-w-full truncate">
+                    <span className="font-bold text-amber-300">
+                      Objek Bab {insideChapter.id}: {built}/5 Terbangun
+                    </span>
+                    <span className="hidden sm:inline text-slate-300">
+                      {nextObj
+                        ? ` · Jawab ${nextObj.requiredCorrect} benar -> ${nextObj.name}`
+                        : ' · Semua objek gedung lengkap!'}
+                    </span>
+                  </div>
+                );
+              })()}
+              <div className="flex flex-wrap items-center justify-end sm:justify-center gap-2">
+                <button
+                  onClick={() => {
+                    setChapterModalTab('video');
+                    setChapterModalOpen(true);
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-xl whitespace-nowrap"
+                >
+                  <PlayCircle className="w-4 h-4" />
+                  Video Materi
+                </button>
+                <button
+                  onClick={() => {
+                    setChapterModalTab('quiz');
+                    setChapterModalOpen(true);
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-xl whitespace-nowrap"
+                >
+                  <BookMarked className="w-4 h-4" />
+                  Soal & Refleksi
+                </button>
+                <button
+                  onClick={() => {
+                    engineRef.current?.exitBuilding();
+                    setInsideChapter(null);
+                    setChapterModalOpen(false);
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-xs font-bold flex items-center gap-1.5 shadow-xl whitespace-nowrap"
+                >
+                  <DoorOpen className="w-4 h-4" />
+                  Keluar Kota
+                </button>
+              </div>
             </div>
           ) : nearVersus ? (
             <div className="fixed bottom-5 right-4 left-36 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex justify-end sm:justify-center">
@@ -1069,7 +1094,10 @@ function GameApp() {
             nearbyChapter && (
               <div className="fixed bottom-5 right-4 left-36 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex justify-end sm:justify-center">
                 <button
-                  onClick={() => engineRef.current?.enterBuilding(nearbyChapter)}
+                  onClick={() => {
+                    const savedScore = progressRef.current.chapters[nearbyChapter.id]?.mcqScore || 0;
+                    engineRef.current?.enterBuilding(nearbyChapter, savedScore);
+                  }}
                   className="px-4 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm shadow-2xl border-2 border-white flex items-center gap-2 max-w-full"
                 >
                   <DoorOpen className="w-4 h-4 shrink-0" />

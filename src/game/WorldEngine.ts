@@ -94,6 +94,9 @@ export class WorldEngine {
   private interiorStations: InteriorStation[] = [];
   private interiorPlayerPos = new THREE.Vector3(0, 0, 7);
   private interiorPlayerRot = Math.PI;
+  private interiorRewardObjects: { group: THREE.Group; targetScale: number }[] = [];
+  private interiorMonumentCrystal?: THREE.Mesh;
+  private interiorUnlockedCount = 0;
 
   // Lighting, Sky & Weather
   private sunLight!: THREE.DirectionalLight;
@@ -1158,6 +1161,152 @@ export class WorldEngine {
 
     this.interiorGroup.add(floor, backWall, leftWall, rightWall, videoStation, quizStation, archiveStation, exitStation, interiorLight);
 
+    // 5 Progressive 3D Reward Objects (2 soal benar = 1 objek terbangun)
+    // Objek 1 (2 Benar): Karpet Belajar Nusantara
+    const carpetGroup = new THREE.Group();
+    carpetGroup.position.set(0, 0.02, 1.4);
+    const rugBorder = new THREE.Mesh(
+      new THREE.BoxGeometry(6.8, 0.05, 4.6),
+      new THREE.MeshStandardMaterial({ color: '#f59e0b', roughness: 0.75 })
+    );
+    rugBorder.position.y = 0.025;
+    const rugMain = new THREE.Mesh(
+      new THREE.BoxGeometry(6.2, 0.06, 4.0),
+      new THREE.MeshStandardMaterial({ color: '#b91c1c', roughness: 0.85 })
+    );
+    rugMain.position.y = 0.032;
+    const rugInner = new THREE.Mesh(
+      new THREE.BoxGeometry(4.4, 0.065, 2.5),
+      new THREE.MeshStandardMaterial({ color: '#1e3a8a', roughness: 0.85 })
+    );
+    rugInner.position.y = 0.038;
+    const rugMedallion = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.95, 0.95, 0.072, 6),
+      new THREE.MeshStandardMaterial({ color: '#fde047', roughness: 0.6 })
+    );
+    rugMedallion.position.y = 0.042;
+    carpetGroup.add(rugBorder, rugMain, rugInner, rugMedallion);
+    carpetGroup.visible = false;
+
+    // Objek 2 (4 Benar): Sofa & Meja Baca Nyaman
+    const loungeGroup = new THREE.Group();
+    loungeGroup.position.set(-7.2, 0, 1.5);
+    loungeGroup.rotation.y = Math.PI / 2;
+    const sofaMat = new THREE.MeshStandardMaterial({ color: '#0284c7', roughness: 0.7 });
+    const cushionMat = new THREE.MeshStandardMaterial({ color: '#bae6fd', roughness: 0.65 });
+    const sofaBase = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.55, 1.3), sofaMat);
+    sofaBase.position.y = 0.35;
+    const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.0, 0.35), sofaMat);
+    sofaBack.position.set(0, 0.95, -0.48);
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.75, 1.3), sofaMat);
+    armL.position.set(-1.55, 0.62, 0);
+    const armR = armL.clone();
+    armR.position.x = 1.55;
+    const pillowL = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.45, 0.28), cushionMat);
+    pillowL.position.set(-0.85, 0.82, -0.18);
+    pillowL.rotation.z = 0.12;
+    const pillowR = pillowL.clone();
+    pillowR.position.x = 0.85;
+    pillowR.rotation.z = -0.12;
+    const coffeeTable = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 1.0), shelfMat);
+    coffeeTable.position.set(0, 0.32, 1.45);
+    const tableBook = new THREE.Mesh(
+      new THREE.BoxGeometry(0.65, 0.1, 0.48),
+      new THREE.MeshStandardMaterial({ color: '#fef08a', roughness: 0.5 })
+    );
+    tableBook.position.set(-0.3, 0.62, 1.45);
+    loungeGroup.add(sofaBase, sofaBack, armL, armR, pillowL, pillowR, coffeeTable, tableBook);
+    loungeGroup.visible = false;
+
+    // Objek 3 (6 Benar): Rak Piala Emas & Tanaman Hias
+    const trophyGroup = new THREE.Group();
+    trophyGroup.position.set(7.2, 0, 1.5);
+    const pedestalMat = new THREE.MeshStandardMaterial({ color: '#e2e8f0', roughness: 0.4, metalness: 0.15 });
+    const trophyGoldMat = new THREE.MeshStandardMaterial({ color: '#fbbf24', metalness: 0.85, roughness: 0.18 });
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, 1.2, 12), pedestalMat);
+    ped.position.set(0, 0.6, -0.8);
+    const cupBase = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.35, 0.25, 12), trimMat);
+    cupBase.position.set(0, 1.32, -0.8);
+    const cupStem = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.45, 10), trophyGoldMat);
+    cupStem.position.set(0, 1.65, -0.8);
+    const cupBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.18, 0.55, 14), trophyGoldMat);
+    cupBowl.position.set(0, 2.08, -0.8);
+    const pot = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.4, 0.75, 12),
+      new THREE.MeshStandardMaterial({ color: '#c2410c', roughness: 0.75 })
+    );
+    pot.position.set(0, 0.38, 0.9);
+    const foliageMat = new THREE.MeshStandardMaterial({ color: '#16a34a', roughness: 0.7 });
+    const leaf1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.68, 1), foliageMat);
+    leaf1.position.set(0, 1.2, 0.9);
+    const leaf2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 1), foliageMat);
+    leaf2.position.set(0.32, 1.55, 0.75);
+    const leaf3 = leaf2.clone();
+    leaf3.position.set(-0.3, 1.48, 1.05);
+    trophyGroup.add(ped, cupBase, cupStem, cupBowl, pot, leaf1, leaf2, leaf3);
+    trophyGroup.visible = false;
+
+    // Objek 4 (8 Benar): Lampu Kristal & Pigura Prestasi
+    const chandelierGroup = new THREE.Group();
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.8, 8), trophyGoldMat);
+    rod.position.set(0, 7.1, 1.4);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.09, 10, 28), trophyGoldMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(0, 6.2, 1.4);
+    chandelierGroup.add(rod, ring);
+    const bulbCrystalMat = new THREE.MeshStandardMaterial({
+      color: '#fef08a',
+      emissive: '#fbbf24',
+      emissiveIntensity: 1.2,
+      roughness: 0.1,
+    });
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const orb = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 0), bulbCrystalMat);
+      orb.position.set(Math.cos(a) * 1.5, 5.95, 1.4 + Math.sin(a) * 1.5);
+      chandelierGroup.add(orb);
+    }
+    const plaqueFrame = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.9, 0.18), trophyGoldMat);
+    plaqueFrame.position.set(0, 5.4, -10.65);
+    const plaqueFace = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.9, 1.4),
+      new THREE.MeshStandardMaterial({ color: '#065f46', emissive: '#10b981', emissiveIntensity: 0.35 })
+    );
+    plaqueFace.position.set(0, 5.4, -10.54);
+    chandelierGroup.add(plaqueFrame, plaqueFace);
+    chandelierGroup.visible = false;
+
+    // Objek 5 (10 Benar): Monumen Kristal Juara TKA
+    const monumentGroup = new THREE.Group();
+    monumentGroup.position.set(0, 0, 1.4);
+    const monBase = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.15, 0.45, 8), pedestalMat);
+    monBase.position.y = 0.23;
+    const monTrim = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.88, 0.65, 8), trophyGoldMat);
+    monTrim.position.y = 0.78;
+    const monCrystalMat = new THREE.MeshStandardMaterial({
+      color: '#34d399',
+      emissive: '#10b981',
+      emissiveIntensity: 0.95,
+      metalness: 0.4,
+      roughness: 0.15,
+    });
+    this.interiorMonumentCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.72, 0), monCrystalMat);
+    this.interiorMonumentCrystal.position.y = 2.05;
+    const monHalo = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.06, 8, 24), trophyGoldMat);
+    monHalo.rotation.x = Math.PI / 2;
+    monHalo.position.y = 2.05;
+    monumentGroup.add(monBase, monTrim, this.interiorMonumentCrystal, monHalo);
+    monumentGroup.visible = false;
+
+    this.interiorGroup.add(carpetGroup, loungeGroup, trophyGroup, chandelierGroup, monumentGroup);
+    this.interiorRewardObjects = [
+      { group: carpetGroup, targetScale: 0 },
+      { group: loungeGroup, targetScale: 0 },
+      { group: trophyGroup, targetScale: 0 },
+      { group: chandelierGroup, targetScale: 0 },
+      { group: monumentGroup, targetScale: 0 },
+    ];
+
     this.interiorStations = [
       { type: 'video', pos: new THREE.Vector3(-6, 0, -4.3), mesh: videoStation, label: 'Layar Video Pembahasan' },
       { type: 'quiz', pos: new THREE.Vector3(0, 0, -3.4), mesh: quizStation, label: 'Meja Soal & Uraian' },
@@ -1166,7 +1315,27 @@ export class WorldEngine {
     ];
   }
 
-  public enterBuilding(chapter: ChapterData): void {
+  public setInteriorCorrectCount(correctCount: number, immediate = false): void {
+    const unlocked = Math.min(5, Math.max(0, Math.floor(correctCount / 2)));
+    this.interiorUnlockedCount = unlocked;
+    this.interiorRewardObjects.forEach((entry, idx) => {
+      const shouldShow = idx < unlocked;
+      entry.targetScale = shouldShow ? 1 : 0;
+      if (shouldShow) {
+        if (!entry.group.visible) {
+          entry.group.visible = true;
+          entry.group.scale.setScalar(immediate ? 1 : 0.08);
+        } else if (immediate) {
+          entry.group.scale.setScalar(1);
+        }
+      } else {
+        entry.group.visible = false;
+        entry.group.scale.setScalar(0.08);
+      }
+    });
+  }
+
+  public enterBuilding(chapter: ChapterData, initialCorrectCount = 0): void {
     this.currentInteriorChapter = chapter;
     this.cityGroup.visible = false;
     this.interiorGroup.visible = true;
@@ -1175,6 +1344,7 @@ export class WorldEngine {
     this.localRig.group.position.copy(this.interiorPlayerPos);
     this.localRig.group.rotation.y = this.interiorPlayerRot;
     this.cameraDistance = 8.5;
+    this.setInteriorCorrectCount(initialCorrectCount, true);
     this.callbacks.onEnterBuilding(chapter);
   }
 
@@ -1826,6 +1996,17 @@ export class WorldEngine {
     if (!this.currentInteriorChapter) {
       this.updateTraffic(dt, elapsed);
       this.updateRemotePlayers(dt, elapsed);
+    } else {
+      for (const item of this.interiorRewardObjects) {
+        if (item.group.visible && item.targetScale > 0) {
+          const s = THREE.MathUtils.damp(item.group.scale.x, item.targetScale, 8, dt);
+          item.group.scale.setScalar(s);
+        }
+      }
+      if (this.interiorMonumentCrystal && this.interiorUnlockedCount >= 5) {
+        this.interiorMonumentCrystal.rotation.y += dt * 1.4;
+        this.interiorMonumentCrystal.position.y = 2.05 + Math.sin(elapsed * 2.4) * 0.14;
+      }
     }
     this.updateLocalPlayer(dt, elapsed);
     this.updateCamera(dt);

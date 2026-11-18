@@ -5,12 +5,19 @@ import {
   ExternalLink,
   FileSpreadsheet,
   FileText,
+  Layers,
   PlayCircle,
+  Sparkles,
   Volume2,
   X,
 } from 'lucide-react';
 import { audioManager } from '../audio/AudioManager';
-import { getYoutubeEmbedUrl } from '../data/curriculum';
+import {
+  GENERAL_TKA_VIDEOS,
+  getYoutubeEmbedUrl,
+  INTERIOR_BUILD_REWARDS,
+  PUSMENDIK_OFFICIAL_URL,
+} from '../data/curriculum';
 import {
   getCachedDriveAccessToken,
   saveArchiveToFirestore,
@@ -44,6 +51,8 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
   onProfileGoogleConnected,
 }) => {
   const [tab, setTab] = useState<'video' | 'quiz' | 'archive'>(initialTab);
+  const [selectedVideoUrl, setSelectedVideoUrl] = useState<string>('');
+  const [selectedVideoTitle, setSelectedVideoTitle] = useState<string>('');
   const [localAnswers, setLocalAnswers] = useState<Record<number, string>>(progress.mcqAnswers || {});
   const [essay, setEssay] = useState<string>(progress.essayAnswer || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -53,6 +62,8 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
   React.useEffect(() => {
     if (open && chapter) {
       setTab(initialTab);
+      setSelectedVideoUrl(chapter.videoUrl);
+      setSelectedVideoTitle(chapter.videoTitle);
       setLocalAnswers(progress.mcqAnswers || {});
       setEssay(progress.essayAnswer || '');
       setSaveMessage(null);
@@ -62,8 +73,11 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
 
   if (!open || !chapter) return null;
 
-  const embedUrl = getYoutubeEmbedUrl(chapter.videoUrl);
+  const activeVideoUrl = selectedVideoUrl || chapter.videoUrl;
+  const activeVideoTitle = selectedVideoTitle || chapter.videoTitle;
+  const embedUrl = getYoutubeEmbedUrl(activeVideoUrl);
   const answeredCount = Object.keys(localAnswers).length;
+  const unlockedObjectsCount = Math.min(5, Math.floor((progress.mcqScore || 0) / 2));
 
   const handleSelectOption = (qId: number, key: 'A' | 'B' | 'C' | 'D') => {
     const nextAnswers = { ...localAnswers, [qId]: key };
@@ -78,6 +92,7 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
     const isPassing = correct >= Math.ceil(chapter.questions.length * 0.6);
     const newlyCompleted = isPassing && !progress.completed;
     const earnedXp = newlyCompleted ? 120 + correct * 15 : correct * 5;
+    const builtCount = Math.min(5, Math.floor(correct / 2));
 
     const nextProgress: ChapterProgress = {
       ...progress,
@@ -90,13 +105,20 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
     onUpdateProgress(nextProgress, earnedXp);
     audioManager.playSfx(isPassing ? 'success' : 'coin');
 
+    const objectFeedback =
+      builtCount > 0
+        ? `Kamu berhasil membangun ${builtCount} objek di dalam gedung (${INTERIOR_BUILD_REWARDS.slice(0, builtCount)
+            .map((r) => r.name)
+            .join(', ')})!`
+        : 'Jawab minimal 2 soal benar untuk membangun objek pertama (Karpet Belajar) di dalam gedung!';
+
     if (isPassing) {
       audioManager.speak(
-        `Hebat ${profile.name}! Kamu mendapat skor ${correct} dari ${chapter.questions.length} soal di Bab ${chapter.id}. Lampu suar emas gedung kini menyala!`
+        `Hebat ${profile.name}! Skor kamu ${correct} dari ${chapter.questions.length} soal di Bab ${chapter.id}. ${objectFeedback} Lampu suar emas gedung menyala!`
       );
     } else {
       audioManager.speak(
-        `Skormu ${correct} dari ${chapter.questions.length}. Ayo baca kembali teks dan tingkatkan hingga minimal ${Math.ceil(chapter.questions.length * 0.6)} jawaban benar.`
+        `Skormu ${correct} dari ${chapter.questions.length}. ${objectFeedback}`
       );
     }
   };
@@ -213,7 +235,7 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
               {progress.completed && (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1 shrink-0">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Selesai
                   </span>
@@ -235,7 +257,7 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
             <button
               onClick={onClose}
               className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10"
-              aria-label="Kembali ke interior gedung"
+              aria-label="Lihat interior gedung 3D"
             >
               <X className="w-5 h-5" />
             </button>
@@ -284,30 +306,77 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
           {tab === 'video' && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-base font-bold text-white">{chapter.videoTitle}</h3>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-white">{activeVideoTitle}</h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Kesesuaian materi: {chapter.videoConfidence}
+                    Keyakinan video bab: {chapter.videoConfidence}
                   </p>
                 </div>
-                <button
-                  onClick={() =>
-                    audioManager.speak(
-                      `Selamat datang di ruang video Bab ${chapter.id}: ${chapter.title}. Silakan simak video pembahasan terlebih dahulu sebelum mengerjakan latihan soal.`
-                    )
-                  }
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-semibold text-sky-300 flex items-center gap-1.5"
-                >
-                  <Volume2 className="w-4 h-4" />
-                  Penjelasan Suara AI
-                </button>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={PUSMENDIK_OFFICIAL_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-semibold text-amber-300 flex items-center gap-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Laman Resmi Pusmendik
+                  </a>
+                  <button
+                    onClick={() =>
+                      audioManager.speak(
+                        `Selamat datang di ruang video Bab ${chapter.id}: ${chapter.title}. Simak video pembahasan atau pilih dari daftar video simulasi TKA di bawah.`
+                      )
+                    }
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-semibold text-sky-300 flex items-center gap-1.5"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    Suara AI
+                  </button>
+                </div>
               </div>
+
+              {/* Primary / Secondary chapter video switcher (for Bab 8 and Bab 1) */}
+              {(chapter.secondaryVideoUrl || selectedVideoUrl !== chapter.videoUrl) && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedVideoUrl(chapter.videoUrl);
+                      setSelectedVideoTitle(chapter.videoTitle);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      activeVideoUrl === chapter.videoUrl
+                        ? 'bg-sky-500/20 border-sky-400 text-sky-200'
+                        : 'bg-slate-800 border-white/10 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    Video Utama Bab {chapter.id}
+                  </button>
+                  {chapter.secondaryVideoUrl && chapter.secondaryVideoTitle && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedVideoUrl(chapter.secondaryVideoUrl!);
+                        setSelectedVideoTitle(chapter.secondaryVideoTitle!);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                        activeVideoUrl === chapter.secondaryVideoUrl
+                          ? 'bg-sky-500/20 border-sky-400 text-sky-200'
+                          : 'bg-slate-800 border-white/10 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      {chapter.secondaryVideoTitle}
+                    </button>
+                  )}
+                </div>
+              )}
 
               {embedUrl ? (
                 <div className="w-full aspect-video rounded-xl overflow-hidden bg-black border border-white/10">
                   <iframe
                     src={embedUrl}
-                    title={chapter.videoTitle}
+                    title={activeVideoTitle}
                     className="w-full h-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
@@ -316,10 +385,10 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
               ) : (
                 <div className="p-6 rounded-xl bg-slate-800/80 border border-white/10 space-y-3">
                   <p className="text-sm text-slate-200 leading-relaxed">
-                    Video ini berasal dari platform belajar Ruangbelajar (Ruangguru). Klik tombol di bawah untuk membuka materi video langsung di jendela baru, lalu kembali ke sini untuk mengerjakan soal!
+                    Video ini berasal dari platform belajar Ruangbelajar (Ruangguru). Kamu bisa membukanya di tab baru atau memutar salah satu video Simulasi TKA SMP (V1–V10) di bawah langsung di layar ini.
                   </p>
                   <a
-                    href={chapter.videoUrl}
+                    href={activeVideoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold"
@@ -327,6 +396,40 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
                     <ExternalLink className="w-4 h-4" />
                     Buka Video Ruangbelajar
                   </a>
+                </div>
+              )}
+
+              {/* Daftar Video Umum V1-V10 */}
+              {chapter.usesGeneralVideoList && (
+                <div className="p-4 rounded-xl bg-slate-800/60 border border-white/10 space-y-2.5">
+                  <p className="text-xs font-bold text-slate-200">
+                    Daftar Video Umum Simulasi & Bedah Soal TKA SMP (V1–V10):
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {GENERAL_TKA_VIDEOS.map((vid) => {
+                      const active = activeVideoUrl === vid.url;
+                      return (
+                        <button
+                          key={vid.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedVideoUrl(vid.url);
+                            setSelectedVideoTitle(`${vid.id}. ${vid.title}`);
+                          }}
+                          className={`p-2.5 rounded-xl border text-left text-xs transition-colors flex items-start gap-2 ${
+                            active
+                              ? 'bg-sky-500/20 border-sky-400 text-sky-100 font-semibold'
+                              : 'bg-slate-900/70 border-white/10 text-slate-300 hover:border-sky-400/40'
+                          }`}
+                        >
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono-tabular font-bold text-[10px] shrink-0">
+                            {vid.id}
+                          </span>
+                          <span className="leading-snug">{vid.title}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -343,6 +446,40 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
 
           {tab === 'quiz' && (
             <div className="space-y-6">
+              {/* Hadiah Bangun Objek Gedung Tracker (2 Soal Benar = 1 Objek) */}
+              <div className="p-4 rounded-xl bg-indigo-950/55 border border-indigo-400/30 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-indigo-200 flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-amber-300" />
+                    Bangun Interior Gedung Bab {chapter.id} (Setiap 2 Soal Benar = 1 Objek)
+                  </p>
+                  <span className="font-mono-tabular text-xs font-extrabold text-amber-300">
+                    {unlockedObjectsCount}/5 Objek Terbangun
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {INTERIOR_BUILD_REWARDS.map((reward) => {
+                    const unlocked = (progress.mcqScore || 0) >= reward.requiredCorrect;
+                    return (
+                      <div
+                        key={reward.tier}
+                        className={`p-2 rounded-lg border text-[11px] leading-tight ${
+                          unlocked
+                            ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-100'
+                            : 'bg-slate-900/70 border-white/10 text-slate-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1 font-bold">
+                          <span>Objek {reward.tier}</span>
+                          <span>{reward.requiredCorrect} Benar</span>
+                        </div>
+                        <p className="mt-1 truncate">{reward.name}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Reading Passage */}
               <div className="p-4 sm:p-5 rounded-xl bg-slate-800/75 border border-white/10 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -445,21 +582,25 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
 
               {/* Submit MCQ bar */}
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs sm:text-sm text-slate-300">
+                <div className="text-xs sm:text-sm text-slate-300 space-y-0.5">
                   {progress.mcqSubmitted ? (
-                    <span>
-                      Skor Terakhir:{' '}
-                      <strong className="font-mono-tabular text-amber-300">
-                        {progress.mcqScore} / {chapter.questions.length}
-                      </strong>
-                    </span>
+                    <>
+                      <p>
+                        Skor Terakhir:{' '}
+                        <strong className="font-mono-tabular text-amber-300">
+                          {progress.mcqScore} / {chapter.questions.length}
+                        </strong>{' '}
+                        · Objek Ruangan:{' '}
+                        <strong className="text-emerald-300">{unlockedObjectsCount}/5 Terbangun</strong>
+                      </p>
+                    </>
                   ) : (
                     <span>
                       Terjawab {answeredCount} dari {chapter.questions.length} soal
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={handleGradeMcq}
@@ -467,6 +608,16 @@ export const ChapterModal: React.FC<ChapterModalProps> = ({
                   >
                     Periksa Jawaban PG
                   </button>
+                  {unlockedObjectsCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="px-3.5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Lihat Objek 3D
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setTab('archive')}

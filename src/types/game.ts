@@ -120,6 +120,12 @@ export interface VersusMatchState {
   winnerId?: string | null;
 }
 
+export interface GeneralVideoItem {
+  id: string;
+  title: string;
+  url: string;
+}
+
 export interface ChapterData {
   id: number;
   shortTitle: string;
@@ -128,6 +134,9 @@ export interface ChapterData {
   isOfficialPacket: boolean;
   videoTitle: string;
   videoUrl: string;
+  secondaryVideoTitle?: string;
+  secondaryVideoUrl?: string;
+  usesGeneralVideoList?: boolean;
   videoConfidence: string;
   passageTitle: string;
   passageText: string;
