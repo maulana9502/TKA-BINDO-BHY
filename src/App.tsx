@@ -6,6 +6,8 @@ import {
   CloudRain,
   DoorOpen,
   FileSpreadsheet,
+  Maximize2,
+  Minimize2,
   Moon,
   Music,
   Palette,
@@ -164,6 +166,8 @@ function GameApp() {
 
   const [musicOn, setMusicOn] = useState(true);
   const [voiceOn, setVoiceOn] = useState(true);
+  const [isMobileFullscreen, setIsMobileFullscreen] = useState(false);
+  const wasNativeFullscreenRef = useRef(false);
 
   const [wsPlayers, setWsPlayers] = useState<RemotePlayer[]>([]);
   const [httpPlayers, setHttpPlayers] = useState<RemotePlayer[]>([]);
@@ -229,6 +233,71 @@ function GameApp() {
       clearInterval(clockTimer);
     };
   }, []);
+
+  // Sync browser native fullscreen changes (e.g. Android back gesture / ESC)
+  useEffect(() => {
+    const handleFsChange = () => {
+      const fsEl =
+        document.fullscreenElement ||
+        (document as unknown as { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ||
+        null;
+      if (fsEl) {
+        wasNativeFullscreenRef.current = true;
+      } else if (wasNativeFullscreenRef.current) {
+        wasNativeFullscreenRef.current = false;
+        setIsMobileFullscreen(false);
+      }
+      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+    };
+
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
+
+  const toggleMobileFullscreen = useCallback(async () => {
+    const docEl = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const doc = document as Document & {
+      webkitExitFullscreen?: () => Promise<void> | void;
+      webkitFullscreenElement?: Element | null;
+    };
+
+    if (!isMobileFullscreen) {
+      setIsMobileFullscreen(true);
+      setChaptersQuickOpen(false);
+      setOnlineDrawerOpen(false);
+      try {
+        if (docEl.requestFullscreen) {
+          await docEl.requestFullscreen();
+          wasNativeFullscreenRef.current = true;
+        } else if (docEl.webkitRequestFullscreen) {
+          await docEl.webkitRequestFullscreen();
+          wasNativeFullscreenRef.current = true;
+        }
+      } catch {
+        // Fallback to clean HUD fullscreen mode when iframe/iOS Safari blocks native requestFullscreen
+      }
+      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 120);
+    } else {
+      setIsMobileFullscreen(false);
+      wasNativeFullscreenRef.current = false;
+      try {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (doc.webkitFullscreenElement && doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen();
+        }
+      } catch {
+        // ignore exit error
+      }
+      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 120);
+    }
+  }, [isMobileFullscreen]);
 
   // Startup Firebase connection check + auth listener
   useEffect(() => {
@@ -788,37 +857,39 @@ function GameApp() {
       {/* Active HUD Overlays */}
       {hasEnteredWorld && (
         <>
-          {/* Top-Left: GTA Radar Minimap + Compact Identity */}
-          <div className="fixed top-3 left-3 z-20 flex items-start gap-2.5 pointer-events-none">
-            <div className="pointer-events-auto">
-              <MinimapRadar
-                playerPos={playerPos}
-                remotePlayers={remotePlayers}
-                completedChapters={progress.completedChapters}
-                onSelectChapter={(id) => {
-                  const ch = CHAPTERS.find((c) => c.id === id);
-                  if (ch) {
-                    const fx = ch.buildingPos.x + Math.sin(ch.buildingPos.rotY) * 9.5;
-                    const fz = ch.buildingPos.z + Math.cos(ch.buildingPos.rotY) * 9.5;
-                    engineRef.current?.teleportNear(fx, fz);
-                  }
-                }}
-                onSelectVersus={() => {
-                  engineRef.current?.teleportNear(VERSUS_BUILDING_POS.x, 96);
-                }}
-              />
-            </div>
+          {/* Top-Left: GTA Radar Minimap + Compact Identity (hidden in HP Fullscreen so nothing blocks screen) */}
+          {!isMobileFullscreen && (
+            <div className="fixed top-3 left-3 z-20 flex items-start gap-2.5 pointer-events-none">
+              <div className="pointer-events-auto">
+                <MinimapRadar
+                  playerPos={playerPos}
+                  remotePlayers={remotePlayers}
+                  completedChapters={progress.completedChapters}
+                  onSelectChapter={(id) => {
+                    const ch = CHAPTERS.find((c) => c.id === id);
+                    if (ch) {
+                      const fx = ch.buildingPos.x + Math.sin(ch.buildingPos.rotY) * 9.5;
+                      const fz = ch.buildingPos.z + Math.cos(ch.buildingPos.rotY) * 9.5;
+                      engineRef.current?.teleportNear(fx, fz);
+                    }
+                  }}
+                  onSelectVersus={() => {
+                    engineRef.current?.teleportNear(VERSUS_BUILDING_POS.x, 96);
+                  }}
+                />
+              </div>
 
-            <div className="px-3 py-2 rounded-xl bg-slate-950/85 border border-white/15 shadow-lg max-w-[170px] sm:max-w-[230px]">
-              <p className="text-xs font-bold text-white truncate">{profile.name}</p>
-              <p className="text-[11px] text-slate-300 truncate">
-                {profile.className} · {profile.school}
-              </p>
-              <p className="font-mono-tabular text-[11px] font-semibold text-amber-300 mt-0.5">
-                Lv.{progress.level} · Bab {progress.completedChapters.length}/11 · {totalAnswered} Soal
-              </p>
+              <div className="px-3 py-2 rounded-xl bg-slate-950/85 border border-white/15 shadow-lg max-w-[170px] sm:max-w-[230px]">
+                <p className="text-xs font-bold text-white truncate">{profile.name}</p>
+                <p className="text-[11px] text-slate-300 truncate">
+                  {profile.className} · {profile.school}
+                </p>
+                <p className="font-mono-tabular text-[11px] font-semibold text-amber-300 mt-0.5">
+                  Lv.{progress.level} · Bab {progress.completedChapters.length}/11 · {totalAnswered} Soal
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Incoming Versus Challenge Banner */}
           {incomingChallenge && (
@@ -866,98 +937,121 @@ function GameApp() {
             </div>
           )}
 
-          {/* Top-Right: Online Players, Gedung Versus, Weather/Time & Controls */}
-          <div className="fixed top-3 right-3 z-20 flex flex-col items-end gap-2">
-            <div className="flex items-center gap-1.5">
+          {/* Top-Right: Online Players, Gedung Versus, Weather/Time & Mobile Fullscreen */}
+          {isMobileFullscreen ? (
+            <div className="fixed top-3 right-3 z-20 flex items-center gap-1.5">
               <button
-                onClick={() => setOnlineDrawerOpen(true)}
-                className="px-3 py-2 rounded-xl bg-slate-950/88 hover:bg-slate-900 border border-emerald-400/40 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg whitespace-nowrap"
+                onClick={toggleMobileFullscreen}
+                title="Keluar Layar Penuh HP"
+                aria-label="Keluar dari mode layar penuh HP"
+                className="px-3 py-2 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-white/20 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg"
               >
-                <Users className="w-4 h-4 text-emerald-400" />
-                <span>Online ({remotePlayers.length + 1})</span>
-              </button>
-
-              <button
-                onClick={() => setVersusModalOpen(true)}
-                className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 border border-amber-300/60 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg whitespace-nowrap"
-              >
-                <Swords className="w-4 h-4 text-amber-200" />
-                <span className="hidden sm:inline">Versus</span>
-              </button>
-
-              <button
-                onClick={() => setChaptersQuickOpen((v) => !v)}
-                className="px-3 py-2 rounded-xl bg-slate-950/88 hover:bg-slate-900 border border-sky-400/40 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg whitespace-nowrap"
-              >
-                <BookMarked className="w-4 h-4 text-sky-400" />
-                <span className="hidden sm:inline">11 Bab</span>
+                <Minimize2 className="w-4 h-4 text-amber-300" />
+                <span>Normal</span>
               </button>
             </div>
+          ) : (
+            <div className="fixed top-3 right-3 z-20 flex flex-col items-end gap-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setOnlineDrawerOpen(true)}
+                  className="px-3 py-2 rounded-xl bg-slate-950/88 hover:bg-slate-900 border border-emerald-400/40 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg whitespace-nowrap"
+                >
+                  <Users className="w-4 h-4 text-emerald-400" />
+                  <span>Online ({remotePlayers.length + 1})</span>
+                </button>
 
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={cycleTimeMode}
-                title={`Cuaca Lokal (${weatherState.locationLabel}): Klik untuk ganti mode waktu`}
-                className="px-2.5 py-2 rounded-xl bg-slate-950/85 hover:bg-slate-900 border border-white/15 text-slate-100 text-xs font-semibold flex items-center gap-1.5 shadow-lg max-w-[165px] sm:max-w-none"
-              >
-                <WeatherIcon className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span className="truncate">{timeModeBadgeText}</span>
-              </button>
+                <button
+                  onClick={() => setVersusModalOpen(true)}
+                  className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 border border-amber-300/60 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg whitespace-nowrap"
+                >
+                  <Swords className="w-4 h-4 text-amber-200" />
+                  <span className="hidden sm:inline">Versus</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  const next = !musicOn;
-                  setMusicOn(next);
-                  audioManager.setMusicEnabled(next);
-                }}
-                title="Musik Latar"
-                className={`p-2 rounded-xl border shadow-lg ${
-                  musicOn
-                    ? 'bg-slate-950/85 border-white/15 text-sky-300'
-                    : 'bg-slate-950/85 border-white/10 text-slate-500'
-                }`}
-                aria-label="Aktifkan atau matikan musik latar"
-              >
-                <Music className="w-4 h-4" />
-              </button>
+                <button
+                  onClick={() => setChaptersQuickOpen((v) => !v)}
+                  className="px-3 py-2 rounded-xl bg-slate-950/88 hover:bg-slate-900 border border-sky-400/40 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg whitespace-nowrap"
+                >
+                  <BookMarked className="w-4 h-4 text-sky-400" />
+                  <span className="hidden sm:inline">11 Bab</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  const next = !voiceOn;
-                  setVoiceOn(next);
-                  audioManager.setVoiceEnabled(next);
-                }}
-                title="Pemandu Suara AI"
-                className={`p-2 rounded-xl border shadow-lg ${
-                  voiceOn
-                    ? 'bg-slate-950/85 border-white/15 text-emerald-300'
-                    : 'bg-slate-950/85 border-white/10 text-slate-500'
-                }`}
-                aria-label="Aktifkan atau matikan pemandu suara AI"
-              >
-                {voiceOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              </button>
+                <button
+                  onClick={toggleMobileFullscreen}
+                  title="Layar Penuh HP (Bebas Penghalang)"
+                  aria-label="Aktifkan mode layar penuh HP"
+                  className="lg:hidden p-2 rounded-xl bg-slate-950/88 hover:bg-slate-900 border border-amber-400/45 text-amber-300 shadow-lg"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+              </div>
 
-              <button
-                onClick={() => setAvatarStudioOpen(true)}
-                title="Kustomisasi Avatar & Pendamping"
-                className="p-2 rounded-xl bg-slate-950/85 hover:bg-slate-900 border border-white/15 text-amber-300 shadow-lg"
-                aria-label="Buka studio avatar"
-              >
-                <Palette className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={cycleTimeMode}
+                  title={`Cuaca Lokal (${weatherState.locationLabel}): Klik untuk ganti mode waktu`}
+                  className="px-2.5 py-2 rounded-xl bg-slate-950/85 hover:bg-slate-900 border border-white/15 text-slate-100 text-xs font-semibold flex items-center gap-1.5 shadow-lg max-w-[165px] sm:max-w-none"
+                >
+                  <WeatherIcon className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  <span className="truncate">{timeModeBadgeText}</span>
+                </button>
 
-              <button
-                onClick={() => setArchiveModalOpen(true)}
-                title="Sheet Arsip Guru"
-                className="px-2.5 py-2 rounded-xl bg-slate-950/85 hover:bg-slate-900 border border-white/15 text-emerald-300 text-xs font-semibold flex items-center gap-1 shadow-lg"
-                aria-label="Buka sheet arsip guru"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span className="hidden md:inline">Sheet Guru</span>
-              </button>
+                <button
+                  onClick={() => {
+                    const next = !musicOn;
+                    setMusicOn(next);
+                    audioManager.setMusicEnabled(next);
+                  }}
+                  title="Musik Latar"
+                  className={`p-2 rounded-xl border shadow-lg ${
+                    musicOn
+                      ? 'bg-slate-950/85 border-white/15 text-sky-300'
+                      : 'bg-slate-950/85 border-white/10 text-slate-500'
+                  }`}
+                  aria-label="Aktifkan atau matikan musik latar"
+                >
+                  <Music className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    const next = !voiceOn;
+                    setVoiceOn(next);
+                    audioManager.setVoiceEnabled(next);
+                  }}
+                  title="Pemandu Suara AI"
+                  className={`p-2 rounded-xl border shadow-lg ${
+                    voiceOn
+                      ? 'bg-slate-950/85 border-white/15 text-emerald-300'
+                      : 'bg-slate-950/85 border-white/10 text-slate-500'
+                  }`}
+                  aria-label="Aktifkan atau matikan pemandu suara AI"
+                >
+                  {voiceOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                </button>
+
+                <button
+                  onClick={() => setAvatarStudioOpen(true)}
+                  title="Kustomisasi Avatar & Pendamping"
+                  className="p-2 rounded-xl bg-slate-950/85 hover:bg-slate-900 border border-white/15 text-amber-300 shadow-lg"
+                  aria-label="Buka studio avatar"
+                >
+                  <Palette className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => setArchiveModalOpen(true)}
+                  title="Sheet Arsip Guru"
+                  className="px-2.5 py-2 rounded-xl bg-slate-950/85 hover:bg-slate-900 border border-white/15 text-emerald-300 text-xs font-semibold flex items-center gap-1 shadow-lg"
+                  aria-label="Buka sheet arsip guru"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span className="hidden md:inline">Sheet Guru</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Collapsible 11-Chapter + Gedung Versus Quick Navigation Drawer */}
           {chaptersQuickOpen && (
