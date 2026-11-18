@@ -1,0 +1,178 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerified() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'maulanakarim9502@gmail.com' ||
+        request.auth.token.email == 'maulana9502@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidPlayerPresence(data) {
+      return data.keys().hasAll([
+        'uid', 'name', 'school', 'className', 'level', 'xp',
+        'completedCount', 'answeredCount', 'x', 'y', 'z', 'rotY',
+        'isOnline', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'uid', 'name', 'school', 'className', 'level', 'xp',
+        'completedCount', 'answeredCount', 'x', 'y', 'z', 'rotY',
+        'isOnline', 'avatarSummary', 'updatedAt'
+      ])
+      && isValidId(data.uid)
+      && data.uid == request.auth.uid
+      && data.name is string && data.name.size() >= 1 && data.name.size() <= 60
+      && data.school is string && data.school.size() >= 1 && data.school.size() <= 80
+      && data.className is string && data.className.size() >= 1 && data.className.size() <= 30
+      && data.level is number && data.level >= 1 && data.level <= 999
+      && data.xp is number && data.xp >= 0 && data.xp <= 1000000
+      && data.completedCount is number && data.completedCount >= 0 && data.completedCount <= 11
+      && data.answeredCount is number && data.answeredCount >= 0 && data.answeredCount <= 500
+      && data.x is number && data.x >= -500 && data.x <= 500
+      && data.y is number && data.y >= -20 && data.y <= 100
+      && data.z is number && data.z >= -500 && data.z <= 500
+      && data.rotY is number && data.rotY >= -100 && data.rotY <= 100
+      && data.isOnline is bool
+      && (!('avatarSummary' in data) || (data.avatarSummary is string && data.avatarSummary.size() <= 300))
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidStudentProgress(data) {
+      return data.keys().hasAll([
+        'uid', 'name', 'school', 'className', 'level', 'xp',
+        'completedChapters', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'uid', 'name', 'school', 'className', 'level', 'xp',
+        'completedChapters', 'chapterScores', 'avatarSummary', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.uid)
+      && data.uid == request.auth.uid
+      && data.name is string && data.name.size() >= 1 && data.name.size() <= 60
+      && data.school is string && data.school.size() >= 1 && data.school.size() <= 80
+      && data.className is string && data.className.size() >= 1 && data.className.size() <= 30
+      && data.level is number && data.level >= 1 && data.level <= 999
+      && data.xp is number && data.xp >= 0 && data.xp <= 1000000
+      && data.completedChapters is list
+      && data.completedChapters.size() <= 11
+      && (data.completedChapters.size() == 0 || data.completedChapters[0] is number)
+      && (!('chapterScores' in data) || (data.chapterScores is string && data.chapterScores.size() <= 4000))
+      && (!('avatarSummary' in data) || (data.avatarSummary is string && data.avatarSummary.size() <= 500))
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidArchive(data) {
+      return data.keys().hasAll([
+        'archiveId', 'uid', 'studentName', 'school', 'className',
+        'chapterId', 'chapterTitle', 'mcqScore', 'mcqTotal',
+        'teacherTarget', 'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'archiveId', 'uid', 'studentName', 'school', 'className',
+        'chapterId', 'chapterTitle', 'mcqScore', 'mcqTotal',
+        'essayAnswer', 'driveLink', 'teacherTarget', 'createdAt'
+      ])
+      && isValidId(data.archiveId)
+      && isValidId(data.uid)
+      && data.uid == request.auth.uid
+      && data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 60
+      && data.school is string && data.school.size() >= 1 && data.school.size() <= 80
+      && data.className is string && data.className.size() >= 1 && data.className.size() <= 30
+      && data.chapterId is number && data.chapterId >= 1 && data.chapterId <= 11
+      && data.chapterTitle is string && data.chapterTitle.size() >= 1 && data.chapterTitle.size() <= 160
+      && data.mcqScore is number && data.mcqScore >= 0 && data.mcqScore <= 100
+      && data.mcqTotal is number && data.mcqTotal >= 1 && data.mcqTotal <= 100
+      && (!('essayAnswer' in data) || (data.essayAnswer is string && data.essayAnswer.size() <= 4000))
+      && (!('driveLink' in data) || (data.driveLink is string && data.driveLink.size() <= 500))
+      && data.teacherTarget is string && data.teacherTarget.size() >= 3 && data.teacherTarget.size() <= 100
+      && data.createdAt is timestamp;
+    }
+
+    match /admins/{uid} {
+      allow get: if isOwner(uid) && isValidId(uid);
+      allow list, create, update, delete: if false;
+    }
+
+    match /players/{uid} {
+      allow get: if isVerified() && isValidId(uid);
+      allow list: if isVerified() && (resource.data.isOnline == true || resource.data.uid == request.auth.uid);
+      allow create: if isOwner(uid) && isValidId(uid)
+        && isValidPlayerPresence(incoming())
+        && incoming().uid == uid
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(uid) && isValidId(uid)
+        && isValidPlayerPresence(incoming())
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'school', 'className', 'level', 'xp',
+          'completedCount', 'answeredCount', 'x', 'y', 'z', 'rotY',
+          'isOnline', 'avatarSummary', 'updatedAt'
+        ]);
+      allow delete: if isOwner(uid) && isValidId(uid);
+    }
+
+    match /progress/{uid} {
+      allow get: if (isOwner(uid) || isAdmin()) && isValidId(uid);
+      allow list: if isAdmin() || (isVerified() && resource.data.uid == request.auth.uid);
+      allow create: if isOwner(uid) && isValidId(uid)
+        && isValidStudentProgress(incoming())
+        && incoming().uid == uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(uid) && isValidId(uid)
+        && isValidStudentProgress(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'school', 'className', 'level', 'xp',
+          'completedChapters', 'chapterScores', 'avatarSummary', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /archives/{archiveId} {
+      allow get: if isValidId(archiveId) && (isAdmin() || (isVerified() && resource.data.uid == request.auth.uid));
+      allow list: if isAdmin() || (isVerified() && resource.data.uid == request.auth.uid);
+      allow create: if isVerified() && isValidId(archiveId)
+        && isValidArchive(incoming())
+        && incoming().archiveId == archiveId
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(archiveId);
+    }
+  }
+}

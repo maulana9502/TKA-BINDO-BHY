@@ -1,0 +1,156 @@
+{
+  "entities": {
+    "PlayerPresence": {
+      "title": "PlayerPresence",
+      "description": "Public non-PII live multiplayer avatar state and progress summary for a student in the 3D city.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Authenticated user UID",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Student display name",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "school": {
+          "type": "string",
+          "description": "Student school name",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "className": {
+          "type": "string",
+          "description": "Student class label",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "level": { "type": "number" },
+        "xp": { "type": "number" },
+        "completedCount": { "type": "number" },
+        "answeredCount": { "type": "number" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" },
+        "rotY": { "type": "number" },
+        "isOnline": { "type": "boolean" },
+        "avatarSummary": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "name",
+        "school",
+        "className",
+        "level",
+        "xp",
+        "completedCount",
+        "answeredCount",
+        "x",
+        "y",
+        "z",
+        "rotY",
+        "isOnline",
+        "updatedAt"
+      ]
+    },
+    "StudentProgress": {
+      "title": "StudentProgress",
+      "description": "Private persistent learning progress and avatar customization for a student.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "school": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "level": { "type": "number" },
+        "xp": { "type": "number" },
+        "completedChapters": { "type": "array" },
+        "chapterScores": { "type": "string", "maxLength": 4000 },
+        "avatarSummary": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "name",
+        "school",
+        "className",
+        "level",
+        "xp",
+        "completedChapters",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TeacherArchiveSubmission": {
+      "title": "TeacherArchiveSubmission",
+      "description": "Structured student reflection sheet archived for teacher/admin maulana9502@gmail.com.",
+      "type": "object",
+      "properties": {
+        "archiveId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "school": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "chapterId": { "type": "number" },
+        "chapterTitle": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "mcqScore": { "type": "number" },
+        "mcqTotal": { "type": "number" },
+        "essayAnswer": { "type": "string", "maxLength": 4000 },
+        "driveLink": { "type": "string", "maxLength": 500 },
+        "teacherTarget": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "archiveId",
+        "uid",
+        "studentName",
+        "school",
+        "className",
+        "chapterId",
+        "chapterTitle",
+        "mcqScore",
+        "mcqTotal",
+        "teacherTarget",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/players/{uid}": {
+      "schema": { "$ref": "#/entities/PlayerPresence" },
+      "description": "Live multiplayer presence and coordinates for active players in the shared 3D city."
+    },
+    "/progress/{uid}": {
+      "schema": { "$ref": "#/entities/StudentProgress" },
+      "description": "Persistent learning progress and avatar settings per authenticated student."
+    },
+    "/archives/{archiveId}": {
+      "schema": { "$ref": "#/entities/TeacherArchiveSubmission" },
+      "description": "Structured student reflection sheets saved for maulana9502@gmail.com."
+    }
+  }
+}
